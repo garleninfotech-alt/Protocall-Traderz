@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master Trading Terminal & Dashboard</title>
+    
+    <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+
+    <style>
+        /* --- GLOBAL STYLES --- */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background-color: #0b0e14; color: #d1d4dc; display: flex; height: 100vh; overflow: hidden; }
+
+        /* --- LEFT TOOLBAR --- */
+        #sidebar { width: 55px; background-color: #131722; border-right: 1px solid #2a2e39; display: flex; flex-direction: column; align-items: center; padding-top: 15px; gap: 15px; flex-shrink: 0; z-index: 10; }
+        .tool-btn { background: transparent; color: #8a919e; border: none; width: 38px; height: 38px; border-radius: 6px; cursor: pointer; font-size: 18px; display: flex; justify-content: center; align-items: center; transition: all 0.2s; }
+        .tool-btn:hover { background-color: #2a2e39; color: #d1d4dc; }
+        .tool-btn.active { color: #00d09c; background-color: rgba(0, 208, 156, 0.1); }
+        .spacer { flex-grow: 1; }
+
+        /* --- LEFT PANELS (Hidden Overlays) --- */
+        #left-panel { width: 340px; background-color: #131722; border-right: 1px solid #2a2e39; display: flex; flex-direction: column; flex-shrink: 0; transition: width 0.3s ease; }
+        .hidden { display: none !important; }
+        .panel-header-title { padding: 12px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a2e39; background: #0b0e14; color: #00d09c; white-space: nowrap;}
+        .panel-close { cursor: pointer; color: #8a919e; font-size: 16px; margin-left: auto; transition: 0.2s; padding: 0 10px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; font-weight: bold;}
+        .panel-close:hover { color: #ef5350; }
+
+        .opt-list { flex-grow: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 5px; white-space: nowrap;}
+        .opt-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; border-bottom: 1px solid #2a2e39; font-size: 14px; background: #0b0e14; border-radius: 4px; cursor: pointer;}
+        .opt-row:hover { background: #151924; }
+        .opt-header { background: #131722; color: #8a919e; font-size: 12px; font-weight: bold; border-bottom: 2px solid #2a2e39; padding: 8px 5px; cursor: default;}
+        .opt-ce { width: 33%; text-align: left; color: #00e6b8; font-weight: bold; }
+        .opt-strike { width: 34%; text-align: center; font-weight: bold; color: #d1d4dc; background: rgba(255,255,255,0.05); padding: 4px 0; border-radius: 4px; }
+        .opt-pe { width: 33%; text-align: right; color: #ef5350; font-weight: bold; }
+        #script-editor { width: 100%; flex-grow: 1; background: #0b0e14; color: #00d09c; border: 1px solid #434651; border-radius: 4px; font-family: monospace; font-size: 13px; padding: 10px; box-sizing: border-box; resize: none; overflow: auto;}
+
+        /* --- CHART AREA (Original App) --- */
+        #main-area { flex-grow: 1; display: flex; flex-direction: column; padding: 15px; overflow-y: auto; overflow-x: hidden; }
+        .control-panel { background: #131722; padding: 12px 20px; border-radius: 6px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; border: 1px solid #2a2e39; }
+        .logo-symbol { background: #00d09c; color: white; font-weight: bold; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 15px; }
+        .inputs-wrapper { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+        .control-panel input, .control-panel select { background: #0b0e14; color: #d1d4dc; border: 1px solid #434651; padding: 6px 10px; border-radius: 4px; font-weight: bold; font-size: 13px; }
+        #plot-btn, #btn-account { background: #2962ff; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; }
+        #chart-type-btn, #reset-chart-btn { background: #2a2e39; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; }
+        #btn-instant-buy { background: #00d09c; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; }
+        #btn-close-trade { background: #ef5350; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; display: none; }
+        #live-symbol-badge { background: rgba(0, 208, 156, 0.1); color: #00d09c; padding: 6px 12px; border-radius: 4px; font-weight: bold; font-size: 14px; border: 1px solid rgba(0, 208, 156, 0.3); text-align: center; min-width: 120px; }
+        #content-wrapper { display: flex; flex-grow: 1; overflow: hidden; gap: 15px; margin-bottom: 12px; min-height: 400px; }
+        #chart-display { flex-grow: 1; border: 1px solid #2a2e39; border-radius: 6px; overflow: hidden; background: #0b0e14; }
+        #market-watch { width: 340px; background-color: #131722; border: 1px solid #2a2e39; border-radius: 6px; display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; }
+        .watch-tabs { display: flex; border-bottom: 1px solid #2a2e39; background: #0b0e14; }
+        .watch-tab { flex: 1; padding: 12px 0; text-align: center; background: transparent; color: #8a919e; border: none; cursor: pointer; font-weight: bold; font-size: 13px; }
+        .watch-tab.active { color: #00d09c; border-bottom: 2px solid #00d09c; background: rgba(0, 208, 156, 0.03); }
+        .watch-list { flex-grow: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 5px; }
+        .watch-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 10px; border-radius: 4px; background: #0b0e14; border: 1px solid transparent; transition: all 0.3s ease; }
+        .watch-symbol { font-weight: bold; color: #d1d4dc; font-size: 14px; }
+        .watch-prices { text-align: right; }
+        .watch-price { font-weight: bold; font-size: 15px; }
+        .trade-log { background: #0b0e14; padding: 10px; border-radius: 4px; border-left: 4px solid #434651; margin-bottom: 8px; font-size: 13px; }
+        .trade-log.profit { border-left-color: #00d09c; }
+        .trade-log.loss { border-left-color: #ef5350; }
+        .trade-log.withdraw { border-left-color: #ff9800; }
+        .trade-header { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 6px; }
+
+        /* --- NEW: HOME DASHBOARD --- */
+        #home-dashboard { flex-grow: 1; display: flex; gap: 15px; padding: 15px; background-color: #0b0e14; overflow-y: auto; }
+        .dash-card { background: #131722; border: 1px solid #2a2e39; border-radius: 8px; padding: 15px; box-sizing: border-box; }
+        
+        /* Dashboard Watchlist (Left) */
+        .dash-watchlist { width: 320px; display: flex; flex-direction: column; gap: 12px; flex-shrink: 0; }
+        .dash-search { width: 100%; background: #0b0e14; border: 1px solid #434651; color: #d1d4dc; padding: 10px; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
+        .dash-wl-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: #d1d4dc; border-bottom: 1px solid #2a2e39; padding-bottom: 10px; }
+        .dash-wl-tabs { display: flex; gap: 5px; margin-top: 5px;}
+        .dash-wl-tab { background: #0b0e14; border: 1px solid #434651; color: #8a919e; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;}
+        .dash-wl-tab.active { background: rgba(0, 208, 156, 0.1); border-color: #00d09c; color: #00d09c; }
+        .dash-wl-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #2a2e39; font-size: 14px; }
+        .dash-wl-item:last-child { border-bottom: none; }
+        
+        /* Dashboard Main Content (Right) */
+        .dash-main { flex-grow: 1; display: flex; flex-direction: column; gap: 15px; min-width: 0; }
+        .dash-port-header { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; border-bottom: 1px solid #2a2e39; padding-bottom: 12px; }
+        .dash-port-title { font-size: 16px; font-weight: bold; color: white; }
+        .dash-port-filter { background: transparent; border: 1px solid #434651; color: #8a919e; padding: 4px 12px; border-radius: 15px; font-size: 12px; cursor: pointer; font-weight: bold; }
+        .dash-port-filter.active { border-color: #00d09c; color: #00d09c; background: rgba(0, 208, 156, 0.05); }
+        .dash-port-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+        .port-val-label { font-size: 12px; color: #8a919e; margin-bottom: 5px; }
+        .port-val-num { font-size: 20px; font-weight: bold; color: #d1d4dc; }
+        .dash-port-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #2a2e39; padding-top: 15px; font-size: 13px; }
+        .btn-topup { background: #00d09c; color: white; border: none; padding: 8px 16px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+
+        /* Dashboard Bottom Layout */
+        .dash-bottom-grid { display: flex; gap: 15px; flex-grow: 1;}
+        .dash-invest-section { flex: 2; display: flex; flex-direction: column; }
+        .invest-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 15px; }
+        .invest-card { display: flex; align-items: center; gap: 10px; background: #0b0e14; padding: 12px; border-radius: 6px; border: 1px solid #2a2e39; cursor: pointer; transition: 0.2s; }
+        .invest-card:hover { border-color: #00d09c; }
+        .banner-row { display: flex; justify-content: space-between; background: #0b0e14; padding: 15px; border-radius: 6px; border: 1px solid #2a2e39; margin-top: 10px; align-items: center; font-size: 13px; cursor: pointer; }
+
+        .dash-movers-section { flex: 1; display: flex; flex-direction: column; }
+        .movers-tabs { display: flex; gap: 5px; margin: 15px 0; }
+        .movers-tab { background: #0b0e14; border: 1px solid #434651; color: #8a919e; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+        .movers-tab.active { border-color: #00d09c; color: #00d09c; }
+
+        /* Mutual Fund Component inside Main Area */
+        #groww-invest-hub { background: #131722; border: 1px solid #2a2e39; border-radius: 6px; padding: 15px; display: flex; flex-direction: column; gap: 10px; height: 160px; box-sizing: border-box; flex-shrink: 0;}
+        .funds-grid { display: flex; gap: 12px; overflow-x: auto; flex-grow: 1; padding-bottom: 5px;}
+        .fund-card { min-width: 260px; background: #0b0e14; border: 1px solid #2a2e39; border-radius: 6px; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; }
+        .fund-name { font-weight: bold; font-size: 14px; color: #d1d4dc; }
+        .fund-return { color: #00d09c; font-weight: bold; font-size: 13px; margin-top: 4px; }
+        .fund-btn { background: #00d09c; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; align-self: flex-start; margin-top: 8px; }
+
+        /* --- DYNAMIC POPUPS (Modals) --- */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(11, 14, 20, 0.9); display: flex; justify-content: center; align-items: center; z-index: 9999; backdrop-filter: blur(4px); }
+        .modal-box { background: #131722; border: 1px solid #2a2e39; border-radius: 8px; padding: 22px; width: 380px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); max-height: 90vh; overflow-y: auto; }
+        .modal-header { font-size: 17px; font-weight: bold; color: #00d09c; border-bottom: 1px solid #2a2e39; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;}
+        .modal-close { cursor: pointer; color: #8a919e; font-size: 20px; }
+        .loader { text-align: center; color: #00d09c; font-weight: bold; padding: 30px 20px; animation: pulse 1s infinite; font-size: 15px;}
+        @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+        
+        .acc-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px dashed #2a2e39; font-size: 14px; }
+        .order-setup { display: flex; flex-direction: column; gap: 12px; margin-top: 10px;}
+        .order-setup input { background: #0b0e14; border: 1px solid #434651; color: white; padding: 8px; border-radius: 4px; font-size: 14px; font-weight: bold;}
+        
+        .auth-container { text-align: center; padding: 10px 0; }
+        .google-btn { background: white; color: #444; border: none; padding: 12px 20px; border-radius: 20px; font-weight: bold; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; margin-top: 20px; transition: 0.2s;}
+        .bank-card { background: #0b0e14; border: 1px solid #434651; padding: 15px; border-radius: 6px; margin-bottom: 10px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; transition: 0.2s;}
+        .bank-card:hover { border-color: #2962ff; background: rgba(41, 98, 255, 0.05); }
+        .funding-option { border: 1px solid #434651; padding: 12px; border-radius: 6px; margin-bottom: 10px; cursor: pointer; display: flex; align-items: center; }
+        .funding-option.active { border-color: #00d09c; background: rgba(0, 208, 156, 0.1); }
+        .funding-radio { margin-right: 12px; accent-color: #00d09c; }
+        
+        .up-change { color: #00d09c; }
+        .down-change { color: #ef5350; }
+    </style>
+</head>
+<body>
+
+    <!-- MASTER MODAL ENGINE -->
+    <div id="master-modal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <div class="modal-header">
+                <span id="modal-title-text">Terminal Engine</span>
+                <span class="modal-close" id="close-modal">✖</span>
+            </div>
+            
+            <div id="modal-loader" class="loader hidden">⚙️ Processing Securely...</div>
+            
+            <!-- Auth & Bank UI -->
+            <div id="auth-screen" class="auth-container hidden">
+                <div style="font-size:40px; margin-bottom:10px;">🛡️</div>
+                <h3 style="margin:0; color:white;">Link Your Financials</h3>
+                <p style="color:#8a919e; font-size:13px; margin-top:5px;">Authenticate to sync banks to Garlen Gamerz Capital.</p>
+                <button class="google-btn" id="btn-google-auth"><img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" width="18" height="18" alt="G"> Sign in with Google</button>
+            </div>
+
+            <div id="bank-select-screen" class="hidden">
+                <p style="color:#8a919e; font-size:13px; margin-bottom:15px; text-align:center;">Select routing bank:</p>
+                <div class="bank-card" data-bank="HDFC Bank" data-acc="**** 4589">
+                    <div style="font-size: 20px;">🏦</div><div style="flex-grow: 1; margin-left: 12px;"><div style="font-weight:bold; color:white; font-size:14px;">HDFC Bank</div><div style="font-size:12px; color:#8a919e;">Savings •••• 4589</div></div><div style="color:#00d09c;">Link</div>
+                </div>
+                <div class="bank-card" data-bank="State Bank of India" data-acc="**** 1204">
+                    <div style="font-size: 20px;">🏛️</div><div style="flex-grow: 1; margin-left: 12px;"><div style="font-weight:bold; color:white; font-size:14px;">State Bank of India</div><div style="font-size:12px; color:#8a919e;">Current •••• 1204</div></div><div style="color:#00d09c;">Link</div>
+                </div>
+            </div>
+
+            <!-- Account UI -->
+            <div id="account-data" class="hidden">
+                <div class="acc-row"><span>Client ID:</span> <span>Garlen Gamerz Capital</span></div>
+                <div class="acc-row"><span>Linked Bank:</span> <span id="display-linked-bank" style="color:#2962ff; font-weight:bold;">Not Connected</span></div>
+                <div class="acc-row"><span>Trading P&L:</span> <span id="acc-pnl" style="color:#00d09c;">₹0.00</span></div>
+                <div class="acc-row"><span>Wallet Margin:</span> <span id="acc-margin" style="color:white; font-weight:bold;">₹1,00,000.00</span></div>
+                <button id="btn-open-withdraw" style="width:100%; background:rgba(41, 98, 255, 0.1); color:#2962ff; border:1px solid #2962ff; padding:10px; border-radius:4px; margin-top:15px; font-weight:bold; cursor:pointer;">Withdraw Funds</button>
+                <button id="btn-close-dashboard" style="width:100%; background:#2a2e39; color:white; border:none; padding:10px; border-radius:4px; margin-top:10px; font-weight:bold; cursor:pointer;">✖ Close Account</button>
+            </div>
+
+            <!-- Withdraw & Funding UI -->
+            <div id="withdraw-interface" class="hidden">
+                <div style="font-size:14px; margin-bottom:5px; color:#8a919e;">Available to Withdraw:</div>
+                <div id="withdraw-max-display" style="font-weight:bold; font-size:18px; color:#00d09c; margin-bottom:15px;">₹0.00</div>
+                <div class="order-setup">
+                    <label style="font-size:12px; color:#8a919e;">Enter Amount (₹):</label>
+                    <input type="number" id="withdraw-amount-input" value="1000" min="100" step="100">
+                    <div style="display:flex; gap:10px; margin-top:10px;">
+                        <button id="btn-withdraw-standard" style="flex:1; background:#131722; color:#d1d4dc; border:1px solid #434651; padding:10px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold;">Keep in Wallet</button>
+                        <button id="btn-withdraw-bank" style="flex:1; background:#2962ff; color:white; border:none; padding:10px; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold;">Direct to Bank</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="funding-interface" class="hidden">
+                <div style="font-size:14px; margin-bottom:15px; color:white; font-weight:bold;" id="funding-target-asset">Executing Order...</div>
+                <label style="font-size:12px; color:#8a919e; margin-bottom:5px; display:block;">Source of Funds:</label>
+                <div class="funding-option active" id="fund-opt-wallet">
+                    <input type="radio" name="fund_source" class="funding-radio" checked>
+                    <div><div style="font-weight:bold; color:white; font-size:14px;">Terminal Wallet</div><div style="font-size:12px; color:#8a919e;">Available: <span id="fund-display-wallet">₹0.00</span></div></div>
+                </div>
+                <div class="funding-option" id="fund-opt-bank">
+                    <input type="radio" name="fund_source" class="funding-radio">
+                    <div><div style="font-weight:bold; color:white; font-size:14px;">Direct from Bank</div><div style="font-size:12px; color:#2962ff;" id="fund-display-bank">Not Connected</div></div>
+                </div>
+                <button id="btn-confirm-funding" style="width:100%; background:#00d09c; color:white; font-weight:bold; border:none; padding:12px; border-radius:4px; margin-top:10px; cursor:pointer;">CONFIRM & PAY</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN LAYOUT SIDEBAR -->
+    <div id="sidebar">
+        <div class="logo-symbol" style="margin-bottom: 10px;">G</div>
+        <!-- NEW: Home Dashboard Toggle -->
+        <button class="tool-btn" id="tool-home" title="Broker Dashboard">🏠</button>
+        <button class="tool-btn active" id="tool-chart" title="Trading Chart">📊</button>
+        
+        <div style="width: 30px; height: 1px; background: #2a2e39; margin: 5px 0;"></div>
+        
+        <button class="tool-btn" id="tool-script" title="Toggle Code Engine">{}</button>
+        <button class="tool-btn" id="tool-options" title="Toggle Option Chain">⛓️</button>
+        <button class="tool-btn" id="tool-market" title="Toggle Market Watch">📋</button>
+        <button class="tool-btn" id="tool-funds" title="Toggle Mutual Funds">🌱</button>
+        <div class="spacer"></div>
+    </div>
+
+    <!-- LEFT UTILITY PANEL (Scripts & Options) -->
+    <div id="left-panel" class="hidden">
+        <div class="panel-header-title">
+            <span id="left-panel-title">Code Engine</span>
+            <button class="panel-close" id="close-left" title="Close Panel">✖</button>
+        </div>
+        <div id="script-view" style="display: flex; flex-direction: column; flex-grow: 1; padding: 15px;">
+            <textarea id="script-editor" spellcheck="false">// Engine logic</textarea>
+        </div>
+        <div id="option-chain-view" style="display: none; flex-direction: column; flex-grow: 1; overflow: hidden;">
+            <div class="opt-row opt-header"><div class="opt-ce" style="color:#8a919e;">CALLS</div><div class="opt-strike" style="color:#8a919e;">STRIKE</div><div class="opt-pe" style="color:#8a919e;">PUTS</div></div>
+            <div class="opt-list" id="opt-chain-list"></div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- NEW: FULL SCREEN BROKER HOME DASHBOARD     -->
+    <!-- ========================================== -->
+    <div id="home-dashboard" class="hidden">
+        
+        <!-- Left Watchlist Container -->
+        <div class="dash-watchlist dash-card">
+            <input type="text" class="dash-search" placeholder="🔍 Search for companies to invest or trade">
+            
+            <div class="dash-wl-header">
+                <span style="color:#ffb74d;">🔖 Nifty 50</span> <span>▼</span>
+            </div>
+            
+            <div class="dash-wl-tabs">
+                <div class="dash-wl-tab active">1</div><div class="dash-wl-tab">2</div><div class="dash-wl-tab">3</div><div class="dash-wl-tab">4</div><div class="dash-wl-tab">5</div>
+            </div>
+
+            <div style="flex-grow: 1; overflow-y: auto; margin-top: 10px;">
+                <div class="dash-wl-item">
+                    <div>Sensex<br><span style="font-size:11px; color:#8a919e;">BSE</span></div>
+                    <div style="text-align:right;"><span class="down-change">76,391.39 ↘</span><br><span style="font-size:11px; color:#8a919e;">-363.66 (-0.47%)</span></div>
+                </div>
+                <div class="dash-wl-item">
+                    <div>Nifty 50<br><span style="font-size:11px; color:#8a919e;">NSE</span></div>
+                    <div style="text-align:right;"><span class="down-change">23,869.60 ↘</span><br><span style="font-size:11px; color:#8a919e;">-126.65 (-0.53%)</span></div>
+                </div>
+                <div class="dash-wl-item">
+                    <div>Hero Motocorp<br><span style="font-size:11px; color:#8a919e;">NSE</span></div>
+                    <div style="text-align:right;"><span class="up-change">5,173.80 ↗</span><br><span style="font-size:11px; color:#8a919e;">186.70 (3.74%)</span></div>
+                </div>
+                <div class="dash-wl-item">
+                    <div>Apollo Hospitals<br><span style="font-size:11px; color:#8a919e;">NSE</span></div>
+                    <div style="text-align:right;"><span class="down-change">8,862.00 ↘</span><br><span style="font-size:11px; color:#8a919e;">-76.00 (-0.85%)</span></div>
+                </div>
+                <div class="dash-wl-item">
+                    <div>Dr Reddys Lab<br><span style="font-size:11px; color:#8a919e;">NSE</span></div>
+                    <div style="text-align:right;"><span class="down-change">1,166.30 ↘</span><br><span style="font-size:11px; color:#8a919e;">-16.50 (-1.39%)</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Main Dashboard View -->
+        <div class="dash-main">
+            <!-- Portfolio Overview Box -->
+            <div class="dash-card">
+                <div class="dash-port-header">
+                    <div class="dash-port-title">My Portfolio</div>
+                    <button class="dash-port-filter active">All</button>
+                    <button class="dash-port-filter">Stocks</button>
+                    <button class="dash-port-filter">Mutual Fund</button>
+                    <button class="dash-port-filter">ETFs</button>
+                </div>
+                
+                <div class="dash-port-grid">
+                    <div>
+                        <div class="port-val-label">Investment</div>
+                        <div class="port-val-num">₹ 221.32</div>
+                    </div>
+                    <div>
+                        <div class="port-val-label">Current Value</div>
+                        <div class="port-val-num">₹ 273.05</div>
+                    </div>
+                    <div>
+                        <div class="port-val-label">Overall Profits</div>
+                        <div class="port-val-num" style="color:#00d09c;">₹ 51.73 (23.37%)</div>
+                    </div>
+                    <div>
+                        <div class="port-val-label">Today's Loss</div>
+                        <div class="port-val-num" style="color:#ef5350;">-₹ 2.66 (-0.96%)</div>
+                    </div>
+                </div>
+
+                <div class="dash-port-footer">
+                    <div><span style="color:#8a919e;">Today's P&L:</span> ₹ 0.00 &nbsp;&nbsp;|&nbsp;&nbsp; <span style="color:#8a919e;">Open Positions:</span> 0</div>
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <span style="color:#8a919e;">Margin Available:</span> <span id="dash-live-margin" style="font-weight:bold; color:white;">₹ 1,00,000.00</span>
+                        <input type="text" value="₹ 900.00" style="background:#0b0e14; border:1px solid #434651; color:#8a919e; padding:6px 10px; border-radius:4px; width:80px; text-align:right;">
+                        <button class="btn-topup">+ Top Up</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lower Split Area -->
+            <div class="dash-bottom-grid">
+                <!-- Invest/Trade Stock Exchange -->
+                <div class="dash-card dash-invest-section">
+                    <h3 style="margin:0 0 5px 0; font-size:16px;">Invest / Trade on Stock Exchanges</h3>
+                    
+                    <div class="invest-grid">
+                        <div class="invest-card"><span style="font-size:20px;">📊</span> <span style="font-weight:bold; font-size:14px;">Equities</span></div>
+                        <div class="invest-card"><span style="font-size:20px;">🌱</span> <span style="font-weight:bold; font-size:14px;">Mutual Funds</span></div>
+                        <div class="invest-card"><span style="font-size:20px;">📈</span> <span style="font-weight:bold; font-size:14px;">ETFs</span></div>
+                        <div class="invest-card"><span style="font-size:20px;">⚡</span> <span style="font-weight:bold; font-size:14px;">Options</span></div>
+                        <div class="invest-card"><span style="font-size:20px;">📆</span> <span style="font-weight:bold; font-size:14px;">Futures</span></div>
+                        <div class="invest-card"><span style="font-size:20px;">🪙</span> <span style="font-weight:bold; font-size:14px;">Commodities</span></div>
+                    </div>
+
+                    <div class="banner-row">
+                        <div style="display:flex; align-items:center; gap:10px;"><span style="font-size:18px;">📄</span> <span style="font-weight:bold;">Rent Stocks</span> <span style="color:#8a919e;">Earn upto 18% pa with SLBM</span></div>
+                        <div style="color:#8a919e;">›</div>
+                    </div>
+                    <div class="banner-row">
+                        <div style="display:flex; align-items:center; gap:10px;"><span style="font-size:18px;">🔒</span> <span style="font-weight:bold;">Gold Vault</span> <span style="color:#8a919e;">Buy 99.9% pure Gold and Silver</span> <span style="background:#ff9800; color:#0b0e14; padding:2px 6px; border-radius:4px; font-weight:bold; font-size:10px;">★ New</span></div>
+                        <div style="color:#8a919e;">›</div>
+                    </div>
+                </div>
+
+                <!-- Market Movers -->
+                <div class="dash-card dash-movers-section">
+                    <h3 style="margin:0; font-size:16px;">Market Movers</h3>
+                    
+                    <div class="movers-tabs">
+                        <button class="movers-tab active">↗ Gainers</button>
+                        <button class="movers-tab">↘ Losers</button>
+                        <button class="movers-tab">📊 Top Volume</button>
+                    </div>
+
+                    <div style="display:flex; flex-direction:column; gap:12px; overflow-y:auto;">
+                        <div style="display:flex; justify-content:space-between; font-size:13px; align-items:center;">
+                            <div style="display:flex; align-items:center; gap:8px;"><div style="background:#2962ff; width:20px; height:20px; border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:10px; color:white;">TV</div> <span>TechNVision...</span></div>
+                            <div style="text-align:right;">4,429.90 <span class="up-change">+738.30 (20.00%)</span></div>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; font-size:13px; align-items:center;">
+                            <div style="display:flex; align-items:center; gap:8px;"><div style="background:#607d8b; width:20px; height:20px; border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:10px; color:white;">TF</div> <span>Tips Films</span></div>
+                            <div style="text-align:right;">375.10 <span class="up-change">+62.50 (19.99%)</span></div>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; font-size:13px; align-items:center;">
+                            <div style="display:flex; align-items:center; gap:8px;"><div style="background:#00d09c; width:20px; height:20px; border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:10px; color:white;">R</div> <span>Rajdarshan In...</span></div>
+                            <div style="text-align:right;">49.46 <span class="up-change">+8.24 (19.99%)</span></div>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; font-size:13px; align-items:center;">
+                            <div style="display:flex; align-items:center; gap:8px;"><div style="background:#ef5350; width:20px; height:20px; border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:10px; color:white;">AG</div> <span>Asian Granito</span></div>
+                            <div style="text-align:right;">51.88 <span class="up-change">+8.46 (19.48%)</span></div>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; font-size:13px; align-items:center;">
+                            <div style="display:flex; align-items:center; gap:8px;"><div style="background:#ff9800; width:20px; height:20px; border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:10px; color:white;">GO</div> <span>Gandhar Oil R...</span></div>
+                            <div style="text-align:right;">281.95 <span class="up-change">+45.76 (19.37%)</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- ORIGINAL CHART & TRADING TERMINAL AREA     -->
+    <!-- ========================================== -->
+    <div id="main-area">
+        <div class="control-panel">
+            <div class="inputs-wrapper">
+                <button id="chart-type-btn">📈 Area</button>
+                <button id="reset-chart-btn" title="Reset Chart View">🔄 Reset</button>
+                
+                <div id="live-symbol-badge">BANK NIFTY</div>
+                <div style="display: flex; align-items: center; gap: 8px; border-right:1px solid #2a2e39; padding-right:15px;">
+                    <button id="btn-instant-buy">🛒 Instant Buy</button>
+                    <button id="btn-close-trade">❌ Sell / Close</button>
+                </div>
+                <select id="timeframe-input"><option value="5" selected>5m</option><option value="15">15m</option></select>
+                <select id="symbol-input"><option value="50000" data-name="BANK NIFTY" selected>BANK NIFTY</option><option value="24000" data-name="NIFTY 50">NIFTY 50</option></select>
+                <button id="plot-btn">Plot</button>
+                <button id="btn-account">🔐 Security</button>
+            </div>
+        </div>
+        
+        <div id="content-wrapper">
+            <div id="chart-display"></div>
+            <div id="market-watch">
+                <div class="watch-tabs">
+                    <button class="watch-tab active" id="tab-nse">Indices Watch</button>
+                    <button class="watch-tab" id="tab-port" style="color: #ff9800;">Holdings</button>
+                    <button class="panel-close" id="close-right" title="Close Panel">✖</button>
+                </div>
+                <div class="watch-list" id="watch-container"></div>
+            </div>
+        </div>
+
+        <div id="groww-invest-hub">
+            <div style="font-size: 15px; font-weight: bold; color: white; display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 5px;">
+                <div style="display: flex; align-items: center; gap: 6px;">🌱 Direct Mutual Funds Explorer</div>
+                <button class="panel-close" id="close-bottom" title="Close Panel">✖</button>
+            </div>
+            <div class="funds-grid">
+                <div class="fund-card"><div><div class="fund-name">Nifty 50 Index Fund Direct</div><div class="fund-return">▲ 14.8%</div></div><button class="fund-btn" data-fund="Nifty 50 Index Fund Direct">Invest Now</button></div>
+                <div class="fund-card"><div><div class="fund-name">Groww Large Cap Alpha</div><div class="fund-return">▲ 18.2%</div></div><button class="fund-btn" data-fund="Groww Large Cap Alpha">Invest Now</button></div>
+                <div class="fund-card"><div><div class="fund-name">Mid Cap Infrastructure</div><div class="fund-return">▲ 24.5%</div></div><button class="fund-btn" data-fund="Mid Cap Infrastructure">Invest Now</button></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.onload = function() {
+            if (typeof LightweightCharts === 'undefined') return;
+
+            // STATE VARIABLES
+            let rawData = []; let activeTab = 'NSE'; 
+            let currentTrade = null; let tradeHistory = []; 
+            let availableWalletCash = 100000; 
+            let liveAssetPrice = 0;
+            
+            let isBankLinked = false;
+            let linkedBankName = "";
+            let linkedBankAcc = "";
+            let pendingOrder = null;
+
+            // DOM UI
+            const masterModal = document.getElementById('master-modal');
+            const mTitle = document.getElementById('modal-title-text');
+            const mLoader = document.getElementById('modal-loader');
+            const screenAuth = document.getElementById('auth-screen');
+            const screenBanks = document.getElementById('bank-select-screen');
+            const screenAcc = document.getElementById('account-data');
+            const screenWithdraw = document.getElementById('withdraw-interface');
+            const screenFunding = document.getElementById('funding-interface');
+
+            // --- NAVIGATION (HOME VS CHART) ---
+            const mainArea = document.getElementById('main-area');
+            const homeDashboard = document.getElementById('home-dashboard');
+            const btnHome = document.getElementById('tool-home');
+            const btnChart = document.getElementById('tool-chart');
+
+            function switchView(view) {
+                if (view === 'HOME') {
+                    btnHome.classList.add('active');
+                    btnChart.classList.remove('active');
+                    mainArea.classList.add('hidden');
+                    homeDashboard.classList.remove('hidden');
+                    updateDashboardMargin(); // sync wallet numbers
+                } else {
+                    btnChart.classList.add('active');
+                    btnHome.classList.remove('active');
+                    homeDashboard.classList.add('hidden');
+                    mainArea.classList.remove('hidden');
+                    setTimeout(() => chart.timeScale().fitContent(), 10);
+                }
+            }
+
+            btnHome.addEventListener('click', () => switchView('HOME'));
+            btnChart.addEventListener('click', () => switchView('CHART'));
+
+            // CHART SETUP
+            const chartContainer = document.getElementById('chart-display');
+            const symbolInput = document.getElementById('symbol-input');
+            const chart = LightweightCharts.createChart(chartContainer, {
+                layout: { background: { type: 'solid', color: '#0b0e14' }, textColor: '#8a919e' },
+                grid: { vertLines: { color: 'rgba(42, 46, 57, 0.3)' }, horzLines: { visible: false } },
+                timeScale: { timeVisible: true }
+            });
+            new ResizeObserver(entries => { if(entries.length>0) chart.applyOptions({height: entries[0].contentRect.height, width: entries[0].contentRect.width}); }).observe(chartContainer);
+            const areaSeries = chart.addAreaSeries({ lineColor: '#00d09c', topColor: 'rgba(0, 208, 156, 0.3)', bottomColor: 'rgba(0, 208, 156, 0.0)' });
+
+            function populateOptionChain(basePrice) {
+                const chainList = document.getElementById('opt-chain-list');
+                chainList.innerHTML = '';
+                let startStrike = Math.floor(basePrice / 100) * 100 - 300;
+                for (let i = 0; i < 7; i++) {
+                    let strike = startStrike + (i * 100); let isATM = i === 3;
+                    let callPrice = (Math.random() * 150 + 20).toFixed(2); let putPrice = (Math.random() * 150 + 20).toFixed(2);
+                    let row = document.createElement('div'); row.className = 'opt-row';
+                    row.innerHTML = `<div class="opt-ce" style="${isATM ? 'background:rgba(0,208,156,0.1); padding-left:5px;' : ''}">${callPrice}</div><div class="opt-strike" style="${isATM ? 'background:#2a2e39; color:#00d09c;' : ''}">${strike}${isATM ? ' (ATM)' : ''}</div><div class="opt-pe" style="${isATM ? 'background:rgba(239,83,80,0.1); padding-right:5px;' : ''}">${putPrice}</div>`;
+                    row.addEventListener('click', () => {
+                        pendingOrder = { type: 'TRADE', asset: `${symbolInput.options[symbolInput.selectedIndex].getAttribute('data-name')} ${strike} CE/PE`, price: parseFloat(callPrice), amount: parseFloat(callPrice) * 15 };
+                        openFundingScreen(`Options Trade: Strike ${strike}`);
+                    });
+                    chainList.appendChild(row);
+                }
+            }
+
+            function refreshChart() {
+                let base = symbolInput.value;
+                document.getElementById('live-symbol-badge').innerText = symbolInput.options[symbolInput.selectedIndex].getAttribute('data-name');
+                rawData = []; let currentClose = parseFloat(base); let currentTimestamp = Math.floor(new Date().getTime()/1000) - 150*300;
+                for(let i=0; i<150; i++) {
+                    let open = currentClose + (Math.random()-0.5)*(currentClose*0.002);
+                    let close = open + (Math.random()-0.48)*(currentClose*0.002);
+                    rawData.push({ time: currentTimestamp, value: close }); currentClose = close; currentTimestamp += 300;
+                }
+                liveAssetPrice = rawData[rawData.length - 1].value;
+                areaSeries.setData(rawData);
+                chart.timeScale().fitContent();
+                populateOptionChain(liveAssetPrice);
+            }
+            symbolInput.addEventListener('change', refreshChart); refreshChart();
+
+            document.getElementById('reset-chart-btn').addEventListener('click', () => refreshChart());
+
+            // --- PANEL TOGGLE LOGIC ---
+            const leftPanel = document.getElementById('left-panel');
+            const rightPanel = document.getElementById('market-watch');
+            const bottomPanel = document.getElementById('groww-invest-hub');
+            const scriptView = document.getElementById('script-view');
+            const optionsView = document.getElementById('option-chain-view');
+            const leftPanelTitle = document.getElementById('left-panel-title');
+
+            document.getElementById('close-left').addEventListener('click', () => leftPanel.classList.add('hidden'));
+            document.getElementById('close-right').addEventListener('click', () => { rightPanel.style.display = 'none'; setTimeout(() => chart.timeScale().fitContent(), 10); });
+            document.getElementById('close-bottom').addEventListener('click', () => bottomPanel.style.display = 'none');
+
+            document.getElementById('tool-script').addEventListener('click', () => { leftPanel.classList.remove('hidden'); scriptView.style.display = 'flex'; optionsView.style.display = 'none'; leftPanelTitle.innerText = "Code Engine"; switchView('CHART'); });
+            document.getElementById('tool-options').addEventListener('click', () => { leftPanel.classList.remove('hidden'); scriptView.style.display = 'none'; optionsView.style.display = 'flex'; leftPanelTitle.innerText = "Option Chain"; switchView('CHART'); });
+            document.getElementById('tool-market').addEventListener('click', () => { rightPanel.style.display = rightPanel.style.display === 'none' ? 'flex' : 'none'; switchView('CHART'); setTimeout(() => chart.timeScale().fitContent(), 10); });
+            document.getElementById('tool-funds').addEventListener('click', () => { bottomPanel.style.display = bottomPanel.style.display === 'none' ? 'flex' : 'none'; switchView('CHART'); });
+
+            function hideAllScreens() { screenAuth.classList.add('hidden'); screenBanks.classList.add('hidden'); screenAcc.classList.add('hidden'); screenWithdraw.classList.add('hidden'); screenFunding.classList.add('hidden'); mLoader.classList.add('hidden'); }
+
+            function updateDashboardMargin() {
+                let totalTradingNet = tradeHistory.reduce((s, t) => s + (t.isInvestment || t.isWithdrawal ? 0 : t.net), 0);
+                let currentWalletBal = availableWalletCash + totalTradingNet;
+                // Update margin on Home Dashboard
+                const dashMarginStr = '₹ ' + currentWalletBal.toLocaleString('en-IN', {minimumFractionDigits: 2});
+                document.getElementById('dash-live-margin').innerText = dashMarginStr;
+            }
+
+            // --- GOOGLE AUTH & BANK ---
+            document.getElementById('btn-account').addEventListener('click', () => {
+                masterModal.classList.remove('hidden'); hideAllScreens();
+                if (!isBankLinked) { mTitle.innerText = "Connect Bank"; screenAuth.classList.remove('hidden'); } else { openDashboard(); }
+            });
+
+            document.getElementById('btn-google-auth').addEventListener('click', () => { hideAllScreens(); mLoader.classList.remove('hidden'); mTitle.innerText = "Authenticating..."; setTimeout(() => { mLoader.classList.add('hidden'); mTitle.innerText = "Select Bank Account"; screenBanks.classList.remove('hidden'); }, 1500); });
+            document.querySelectorAll('.bank-card').forEach(card => { card.addEventListener('click', (e) => { let c = e.currentTarget; linkedBankName = c.getAttribute('data-bank'); linkedBankAcc = c.getAttribute('data-acc'); isBankLinked = true; hideAllScreens(); mLoader.classList.remove('hidden'); mTitle.innerText = "Securing Connection..."; setTimeout(() => { alert(`Success! ${linkedBankName} linked.`); openDashboard(); }, 1000); }); });
+
+            function openDashboard() {
+                hideAllScreens(); mTitle.innerText = "Security & Accounts"; screenAcc.classList.remove('hidden');
+                document.getElementById('display-linked-bank').innerText = isBankLinked ? `${linkedBankName} (${linkedBankAcc})` : 'Not Connected';
+                let totalTradingNet = tradeHistory.reduce((s, t) => s + (t.isInvestment || t.isWithdrawal ? 0 : t.net), 0);
+                document.getElementById('acc-pnl').innerText = (totalTradingNet >= 0 ? '+' : '') + '₹' + totalTradingNet.toFixed(2);
+                document.getElementById('acc-pnl').style.color = totalTradingNet >= 0 ? '#00d09c' : '#ef5350';
+                document.getElementById('acc-margin').innerText = '₹' + (availableWalletCash + totalTradingNet).toFixed(2);
+                updateDashboardMargin();
+            }
+
+            // --- WITHDRAW ---
+            document.getElementById('btn-open-withdraw').addEventListener('click', () => { hideAllScreens(); mTitle.innerText = "Withdraw Funds"; screenWithdraw.classList.remove('hidden'); let totalTradingNet = tradeHistory.reduce((s, t) => s + (t.isInvestment || t.isWithdrawal ? 0 : t.net), 0); document.getElementById('withdraw-max-display').innerText = '₹' + (availableWalletCash + totalTradingNet).toFixed(2); });
+            function processWithdrawal(method) {
+                let amount = parseFloat(document.getElementById('withdraw-amount-input').value); let totalTradingNet = tradeHistory.reduce((s, t) => s + (t.isInvestment || t.isWithdrawal ? 0 : t.net), 0);
+                if (amount > (availableWalletCash + totalTradingNet)) return alert("Insufficient funds!");
+                availableWalletCash -= amount; tradeHistory.unshift({ asset: `Withdrawal (${method})`, entry:0, exit:0, gross:0, charge:0, net:amount, isWithdrawal: true });
+                alert(`✅ Withdrawal Processed!\n₹${amount.toFixed(2)} routed via ${method}.`); masterModal.classList.add('hidden'); activeTab = 'PORT'; renderRightPanel(); updateDashboardMargin();
+            }
+            document.getElementById('btn-withdraw-standard').addEventListener('click', () => processWithdrawal('Wallet Hold'));
+            document.getElementById('btn-withdraw-bank').addEventListener('click', () => processWithdrawal('Direct to ' + (isBankLinked ? linkedBankName : 'Bank')));
+
+            // --- FUNDING & BUYING ---
+            const btnBuy = document.getElementById('btn-instant-buy'); const btnClose = document.getElementById('btn-close-trade');
+            const optWallet = document.getElementById('fund-opt-wallet'); const optBank = document.getElementById('fund-opt-bank');
+            optWallet.addEventListener('click', () => { optWallet.classList.add('active'); optBank.classList.remove('active'); optWallet.querySelector('input').checked = true; });
+            optBank.addEventListener('click', () => { if(isBankLinked){ optBank.classList.add('active'); optWallet.classList.remove('active'); optBank.querySelector('input').checked = true; }});
+
+            btnBuy.addEventListener('click', () => { let currentAsset = document.getElementById('live-symbol-badge').innerText; pendingOrder = { type: 'TRADE', asset: currentAsset, price: liveAssetPrice, amount: liveAssetPrice }; openFundingScreen(`Market Order: ${currentAsset}`); });
+            document.querySelectorAll('.fund-btn').forEach(btn => { btn.addEventListener('click', (e) => { let fName = e.target.getAttribute('data-fund'); pendingOrder = { type: 'MF', asset: fName, amount: 5000 }; openFundingScreen(`Invest ₹5000 in ${fName}`); }); });
+
+            function openFundingScreen(titleDesc) {
+                masterModal.classList.remove('hidden'); hideAllScreens(); mTitle.innerText = "Order Funding Route"; screenFunding.classList.remove('hidden');
+                document.getElementById('funding-target-asset').innerText = titleDesc;
+                let totalTradingNet = tradeHistory.reduce((s, t) => s + (t.isInvestment || t.isWithdrawal ? 0 : t.net), 0);
+                document.getElementById('fund-display-wallet').innerText = '₹' + (availableWalletCash + totalTradingNet).toFixed(2);
+                if (isBankLinked) { document.getElementById('fund-display-bank').innerText = `${linkedBankName} (${linkedBankAcc})`; document.getElementById('fund-display-bank').style.color = "#00d09c"; optBank.style.opacity = "1"; } else { document.getElementById('fund-display-bank').innerText = "Bank Not Linked"; document.getElementById('fund-display-bank').style.color = "#ef5350"; optBank.style.opacity = "0.5"; }
+            }
+
+            document.getElementById('btn-confirm-funding').addEventListener('click', () => {
+                if (!pendingOrder) return; let useWallet = optWallet.querySelector('input').checked; let totalTradingNet = tradeHistory.reduce((s, t) => s + (t.isInvestment || t.isWithdrawal ? 0 : t.net), 0); let currentWalletBal = availableWalletCash + totalTradingNet;
+                if (useWallet && pendingOrder.amount > currentWalletBal) return alert("Insufficient Wallet Balance!");
+                if (useWallet) { availableWalletCash -= pendingOrder.amount; }
+                let fundingLabel = useWallet ? "Wallet" : linkedBankName;
+                if (pendingOrder.type === 'TRADE') { currentTrade = { asset: pendingOrder.asset, entry: pendingOrder.price, source: fundingLabel }; btnBuy.style.display = 'none'; btnClose.style.display = 'inline-block'; alert(`ORDER FILLED via ${fundingLabel}\nBought ${pendingOrder.asset} at ₹${pendingOrder.price.toFixed(2)}`); } 
+                else if (pendingOrder.type === 'MF') { tradeHistory.unshift({ asset: pendingOrder.asset + ` (via ${fundingLabel})`, entry:1, exit:1, gross:pendingOrder.amount, charge:0, net:pendingOrder.amount, isInvestment: true }); alert(`🎉 Investment Confirmed!\n₹${pendingOrder.amount} deployed to ${pendingOrder.asset}.`); activeTab = 'PORT'; renderRightPanel(); }
+                masterModal.classList.add('hidden'); pendingOrder = null; updateDashboardMargin();
+            });
+
+            btnClose.addEventListener('click', () => {
+                if(!currentTrade) return;
+                let exitPrice = currentTrade.asset.includes("CE/PE") ? currentTrade.entry + (Math.random() * 20 - 10) : liveAssetPrice; 
+                let gross = exitPrice - currentTrade.entry; let charge = gross > 0 ? gross * 0.25 : 0; let net = gross - charge;
+                tradeHistory.unshift({ asset: currentTrade.asset + ` (${currentTrade.source})`, entry: currentTrade.entry, exit: exitPrice, gross: gross, charge: charge, net: net });
+                currentTrade = null; btnClose.style.display = 'none'; btnBuy.style.display = 'inline-block'; renderRightPanel(); alert(`Position Closed!`); updateDashboardMargin();
+            });
+
+            document.getElementById('close-modal').addEventListener('click', () => masterModal.classList.add('hidden'));
+            document.getElementById('btn-close-dashboard').addEventListener('click', () => masterModal.classList.add('hidden'));
+
+            // RIGHT PANEL
+            const watchContainer = document.getElementById('watch-container');
+            function renderRightPanel() {
+                watchContainer.innerHTML = '';
+                if(activeTab === 'PORT') {
+                    if (tradeHistory.length === 0) return watchContainer.innerHTML = '<div style="color:#8a919e;padding:20px;">No open investments.</div>';
+                    tradeHistory.forEach(t => {
+                        if (t.isWithdrawal) watchContainer.insertAdjacentHTML('beforeend', `<div class="trade-log withdraw" style="border-left-color:#ff9800;"><div class="trade-header"><span style="color:white;">🏦 ${t.asset}</span> <span style="color:#ff9800;">-₹${t.net.toFixed(2)}</span></div></div>`);
+                        else if (t.isInvestment) watchContainer.insertAdjacentHTML('beforeend', `<div class="trade-log profit" style="border-left-color:#00d09c;"><div class="trade-header"><span style="color:white;">🌿 ${t.asset}</span></div><div style="font-size:12px;color:#8a919e;">Principal: ₹${t.gross.toFixed(2)}</div></div>`);
+                        else { let isProf = t.net >= 0; watchContainer.insertAdjacentHTML('beforeend', `<div class="trade-log ${isProf ? 'profit' : 'loss'}"><div class="trade-header"><span>📊 ${t.asset}</span> <span style="color:${isProf?'#00d09c':'#ef5350'}">₹${t.net.toFixed(2)}</span></div><div style="display:flex; justify-content:space-between; font-size:12px; color:#8a919e;"><span>Entry: ₹${t.entry.toFixed(2)}</span> <span>Exit: ₹${t.exit.toFixed(2)}</span></div></div>`); }
+                    });
+                } else { watchContainer.innerHTML = `<div class="watch-item"><div class="watch-symbol">NIFTY 50</div><div class="watch-prices"><div class="watch-price" style="color:#00d09c;">24,150.20</div></div></div>`; }
+            }
+            document.getElementById('tab-nse').addEventListener('click', (e) => { document.getElementById('tab-port').classList.remove('active'); e.target.classList.add('active'); activeTab = 'NSE'; renderRightPanel(); });
+            document.getElementById('tab-port').addEventListener('click', (e) => { document.getElementById('tab-nse').classList.remove('active'); e.target.classList.add('active'); activeTab = 'PORT'; renderRightPanel(); });
+            
+            renderRightPanel();
+        };
+    </script>
+</body>
+</html>
