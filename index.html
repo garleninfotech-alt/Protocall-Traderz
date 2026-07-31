@@ -5,28 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Protocall Traderz</title>
     <script>                                                                                                
+      <script>
         // --- 3. Dhan Webhook Order Execution ---
         function placeRealDhanOrder(type) {
             
-            // 1. PASTE YOUR WEBHOOK URL INSIDE THESE QUOTES:
-            const dhanWebhookUrl = "https://webhooks.dhan.co/https://tv-webhook.dhan.co/tv/alert/9c9bdb19872641c8bff26d4db2c1c13e/RPZE72257J";
+            // This translates your terminal's BUY/SELL buttons to Dhan's B/S format
+            const dhanType = (type === 'BUY' || type === 'B') ? 'B' : 'S';
+
+            // Your exact Webhook URL
+            const dhanWebhookUrl = "https://tv-webhook.dhan.co/tv/alert/9c9bdb19872641c8bff26d4db2c1c13e/RPZE72257J";
             
-            // 2. PASTE YOUR GENERATED JSON INSIDE THESE BRACKETS:
+            // Your exact JSON payload and Secret
             const orderMessage = {
-                "secret": "your_unique_secret_code_from_dhan",
-                "symbol": "NIFTY",
-                "instrument": "OPTIDX",
-                "transactionType": type, // Leave this as 'type' so the Buy/Sell buttons work dynamically
-                "quantity": 25,
-                "orderType": "MARKET",
-                "productType": "M",
-                "price": "0",
-                "validity": "DAY",
-                "disclosedQuantity": "0",
-                "triggerPrice": "0",
-                "exchange": "NFO"
+                "secret": "01XVA",
+                "alertType": "multi_leg_order",
+                "order_legs": [
+                    {
+                        "transactionType": dhanType, // Dynamically swaps B and S
+                        "orderType": "MKT",
+                        "quantity": "25",
+                        "exchange": "NSE",
+                        "symbol": "NIFTY",
+                        "instrument": "OPT",
+                        "productType": "I",
+                        "sort_order": "1",
+                        "price": "0",
+                        "option_type": "CE",
+                        "strike_price": "24350.0",
+                        "expiry_date": "2026-08-18"
+                    }
+                ]
             };
 
+            // Sends the trade to Dhan
             fetch(dhanWebhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -38,8 +49,8 @@
             .catch(error => {
                 alert(`❌ Error sending ${type} trade.`);
             });
-        }></script>
-
+        }
+    </script>
     <style>
         /* --- GLOBAL STYLES --- */
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background-color: #0b0e14; color: #d1d4dc; display: flex; height: 100vh; overflow: hidden; }
